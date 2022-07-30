@@ -10,7 +10,7 @@ EXPOSE 443
 
 FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build
 WORKDIR /src
-COPY ["Maersk.WeatherApi.csproj", "./"]
+COPY ["./Maersk.WeatherApi.csproj", "./"]
 RUN dotnet restore "Maersk.WeatherApi.csproj"
 COPY . .
 WORKDIR "/src/."
