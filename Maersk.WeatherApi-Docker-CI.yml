@@ -1,0 +1,77 @@
+variables:
+- name: BuildParameters.repository
+  value: dheerajbhavsar89/webapirepo
+trigger:
+  branches:
+    include:
+    - refs/heads/master
+name: $(date:yyyyMMdd)$(rev:.r)
+jobs:
+- job: Job_1
+  displayName: Build Docker Image
+  pool:
+    vmImage: windows-2019
+  steps:
+  - checkout: self
+    clean: true
+  - task: Docker@2
+    displayName: buildAndPush
+    inputs:
+      containerRegistry: 95577393-dc58-488d-ad9d-f4d34f82ebb1
+      repository: $(BuildParameters.repository)
+      Dockerfile: Maersk.WeatherApi/Dockerfile
+      buildContext: Maersk.WeatherApi
+      tags: >-
+        $(Build.BuildId)
+
+        latest
+- job: Job_2
+  displayName: Build Service Fabric
+  pool:
+    vmImage: windows-2019
+  steps:
+  - checkout: self
+    clean: true
+  - task: NuGetToolInstaller@1
+    displayName: Use NuGet 6.2.1
+    inputs:
+      versionSpec: 6.2.1
+  - task: NuGetCommand@2
+    displayName: NuGet restore
+    inputs:
+      configurationToPack: release
+  - task: DotNetCoreCLI@2
+    displayName: Build Service Fabric Project
+    inputs:
+      projects: '**/*.sfproj'
+      arguments: -c release /t:Package /p:PackageLocation=$(build.artifactstagingdirectory)\applicationpackage
+      configurationToPack: release
+  - task: CopyFiles@2
+    displayName: 'Copy Files to: $(build.artifactstagingdirectory)\pdbs'
+    inputs:
+      SourceFolder: $(build.artifactstagingdirectory)\applicationpackage
+      Contents: '**\*.pbds'
+      TargetFolder: $(build.artifactstagingdirectory)\pdbs
+  - task: DeleteFiles@1
+    displayName: Delete files from $(build.artifactstagingdirectory)\applicationpackage
+    inputs:
+      SourceFolder: $(build.artifactstagingdirectory)\applicationpackage
+      Contents: '**\*.pdb'
+  - task: ServiceFabricUpdateManifests@2
+    displayName: Update Service Fabric Manifests (Manifest versions)
+    inputs:
+      applicationPackagePath: $(build.artifactstagingdirectory)\applicationpackage
+      updateOnlyChanged: true
+      pkgArtifactName: drop
+  - task: CopyFiles@2
+    displayName: 'Copy Files to: $(build.artifactstagingdirectory)\projectartifacts'
+    inputs:
+      SourceFolder: $(system.defaultworkingdirectory)
+      Contents: >-
+        **\PublishProfiles\*.xml
+
+        **\ApplicationParameters\*.xml
+      TargetFolder: $(build.artifactstagingdirectory)\projectartifacts
+  - task: PublishBuildArtifacts@1
+    displayName: 'Publish Artifact: drop'
+...
